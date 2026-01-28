@@ -4,12 +4,10 @@ using UnityEngine.Rendering;
 using UnityEngine;
 using Meta.XR;
 using System;
-#if ZXING_ENABLED
 using ZXing;
 using ZXing.Common;
 using ZXing.QrCode;
 using ZXing.Multi;
-#endif
 
 public enum QrCodeDetectionMode
 {
@@ -29,7 +27,7 @@ public class QrCodeResult
 
 public class QrCodeScanner : MonoBehaviour
 {
-#if ZXING_ENABLED
+
     [SerializeField] private int sampleFactor = 2;
     [SerializeField] private QrCodeDetectionMode detectionMode = QrCodeDetectionMode.Single;
 
@@ -76,7 +74,11 @@ public class QrCodeScanner : MonoBehaviour
 
     public async Task<QrCodeResult[]> ScanFrameAsync()
     {
-        if (_isScanning || !_downsampleShader) return Array.Empty<QrCodeResult>();
+        if (_isScanning || !_downsampleShader) 
+        {
+            // Debug.Log($"[QrCodeScanner] Skipping scan. IsScanning: {_isScanning}, Shader: {_downsampleShader != null}");
+            return Array.Empty<QrCodeResult>();
+        }
 
         _isScanning = true;
         try
@@ -84,12 +86,16 @@ public class QrCodeScanner : MonoBehaviour
             var frame = await AcquireFrameAsync();
             if (frame == null)
             {
+                // Debug.LogWarning("[QrCodeScanner] Frame acquisition failed (null frame).");
                 return Array.Empty<QrCodeResult>();
             }
+
+            // Debug.Log($"[QrCodeScanner] Frame acquired. Resolution: {frame.Value.Resolution}");
 
             var (targetWidth, targetHeight) = GetTargetDimensions(frame.Value.Texture);
             if (!EnsureDownsampleTarget(targetWidth, targetHeight))
             {
+                Debug.LogError("[QrCodeScanner] Failed to ensure downsample target.");
                 return Array.Empty<QrCodeResult>();
             }
 
@@ -97,11 +103,21 @@ public class QrCodeScanner : MonoBehaviour
             var grayBytes = await ReadPixelsAsync(_downsampledTexture);
             if (grayBytes == null || grayBytes.Length == 0)
             {
+                Debug.LogError("[QrCodeScanner] ReadPixelsAsync returned empty data.");
                 return Array.Empty<QrCodeResult>();
             }
 
             var decoded = await Task.Run(() => DecodeFrame(frame.Value, grayBytes, targetWidth, targetHeight));
+            if (decoded != null && decoded.Length > 0)
+            {
+                Debug.Log($"[QrCodeScanner] Decoded {decoded.Length} QR codes.");
+            }
             return decoded ?? Array.Empty<QrCodeResult>();
+        }
+        catch (Exception ex)
+        {
+             Debug.LogError($"[QrCodeScanner] Exception during scan: {ex}");
+             return Array.Empty<QrCodeResult>();
         }
         finally
         {
@@ -148,9 +164,19 @@ public class QrCodeScanner : MonoBehaviour
 
     private async Task<CaptureFrame?> AcquireFrameAsync()
     {
-        while (true)
+        // Timeout to prevent infinite wait if camera never plays
+        int attempts = 0;
+        int maxAttempts = 5; 
+
+        while (attempts < maxAttempts)
         {
-            if (_cameraAccess && _cameraAccess.IsPlaying)
+            if (_cameraAccess == null)
+            {
+                Debug.LogError("[QrCodeScanner] _cameraAccess is NULL.");
+                return null;
+            }
+
+            if (_cameraAccess.IsPlaying)
             {
                 var texture = _cameraAccess.GetTexture();
                 if (texture)
@@ -163,9 +189,19 @@ public class QrCodeScanner : MonoBehaviour
                         Resolution = _cameraAccess.CurrentResolution
                     };
                 }
+                else
+                {
+                     Debug.LogWarning("[QrCodeScanner] Camera is playing but GetTexture() returned null.");
+                }
             }
+            else
+            {
+                Debug.LogWarning("[QrCodeScanner] Camera Access is NOT playing.");
+            }
+            attempts++;
             await Task.Delay(16);
         }
+        return null;
     }
 
     private (int width, int height) GetTargetDimensions(Texture texture)
@@ -246,5 +282,4 @@ public class QrCodeScanner : MonoBehaviour
 
         return Array.Empty<QrCodeResult>();
     }
-#endif
 }

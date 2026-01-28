@@ -4,7 +4,6 @@ using Meta.XR;
 
 public class QrCodeDisplayManager : MonoBehaviour
 {
-#if ZXING_ENABLED
     private QrCodeScanner _scanner;
     private EnvironmentRaycastManager _envRaycastManager;
     private readonly Dictionary<string, MarkerController> _activeMarkers = new();
@@ -21,6 +20,25 @@ public class QrCodeDisplayManager : MonoBehaviour
     {
         _scanner = GetComponent<QrCodeScanner>();
         _envRaycastManager = GetComponent<EnvironmentRaycastManager>();
+    }
+
+    private void Start()
+    {
+        RequestPermissions();
+    }
+
+    private void RequestPermissions()
+    {
+        if (!UnityEngine.Android.Permission.HasUserAuthorizedPermission(UnityEngine.Android.Permission.Camera))
+        {
+            UnityEngine.Android.Permission.RequestUserPermission(UnityEngine.Android.Permission.Camera);
+        }
+
+        const string scenePermission = "com.oculus.permission.USE_SCENE";
+        if (!UnityEngine.Android.Permission.HasUserAuthorizedPermission(scenePermission))
+        {
+            UnityEngine.Android.Permission.RequestUserPermission(scenePermission);
+        }
     }
 
     private void Update() => RefreshMarkers();
@@ -57,7 +75,6 @@ public class QrCodeDisplayManager : MonoBehaviour
 
         CleanupInactiveMarkers();
     }
-#endif
 
     private static Vector2 ToViewport(Vector2 uv) => new(Mathf.Clamp01(uv.x), Mathf.Clamp01(uv.y));
 

@@ -62,7 +62,9 @@ public static class ZXingDefineSymbolChecker
     private static bool HasZXingDLL()
     {
         var files = Directory.GetFiles(Application.dataPath, "*ZXing.dll", SearchOption.AllDirectories)
-                             .Concat(Directory.GetFiles(Application.dataPath, "*zxing.dll", SearchOption.AllDirectories));
+                             .Concat(Directory.GetFiles(Application.dataPath, "*zxing.dll", SearchOption.AllDirectories))
+                             .Concat(Directory.GetFiles(Application.dataPath, "zxing.unity.dll", SearchOption.AllDirectories))
+                             .Concat(Directory.GetFiles(Application.dataPath, "*zxing*.dll", SearchOption.AllDirectories)); // Broader search to be safe
         return files.Any();
     }
 }
